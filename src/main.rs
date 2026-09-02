@@ -229,8 +229,13 @@ fn load_config(custom_path: Option<std::path::PathBuf>) -> Result<NotificationCo
 
 /// Try to read `NotificationConfig` from the ActivityWatch settings API (`/api/0/settings/aw-notify`).
 ///
-/// On success, the server config overrides the local TOML. On any failure (server
-/// unreachable, key absent, malformed JSON), the local config is returned unchanged.
+/// On success, the server config **replaces** the local TOML wholesale (all-or-nothing).
+/// Unset fields fall back to their `Default` values, not to the local TOML. This is
+/// intentional: the server config is the authoritative complete config, not a patch.
+///
+/// On any failure (key absent / null response, server unreachable *before*
+/// `get_info()` exits the process, malformed JSON), the local config is returned
+/// unchanged.
 fn try_load_server_config(
     client: &aw_client_rust::blocking::AwClient,
     local: NotificationConfig,
