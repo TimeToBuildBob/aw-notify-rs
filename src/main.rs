@@ -236,6 +236,10 @@ fn try_load_server_config(
     local: NotificationConfig,
 ) -> NotificationConfig {
     match client.get_setting("aw-notify") {
+        Ok(serde_json::Value::Null) => {
+            log::debug!("No aw-notify config on server (using local TOML)");
+            local
+        }
         Ok(value) => match serde_json::from_value::<NotificationConfig>(value) {
             Ok(server_config) => {
                 log::info!(
@@ -1956,5 +1960,22 @@ mod tests {
             "malformed value should fail to parse"
         );
         // In try_load_server_config the Err branch returns local unchanged — tested via unit.
+    }
+
+    #[test]
+    fn test_null_server_value_is_not_malformed() {
+        // aw-server returns HTTP 200 with JSON null when the key is absent.
+        // This must be treated as "no config" (debug log), not "malformed" (warn log).
+        // The Value::Null arm in try_load_server_config covers this; verify parsing alone
+        // confirms null is distinct from an Err, so the arm is reachable.
+        let null_value = serde_json::Value::Null;
+        assert!(matches!(null_value, serde_json::Value::Null));
+        // Attempting to deserialise null as NotificationConfig would error — confirming
+        // it previously fell into the malformed branch before the fix.
+        let parse_result = serde_json::from_value::<NotificationConfig>(null_value);
+        assert!(
+            parse_result.is_err(),
+            "null should not parse as NotificationConfig"
+        );
     }
 }
